@@ -3,49 +3,88 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import App from './App';
 
-// Mock the Stack Navigator for testing
+// Mock the Stack Navigator for isolated testing
 jest.mock('@react-navigation/native', () => {
-  const { NavigationContainer } = require('@react-navigation/native');
-  const { createStackNavigator } = require('@react-navigation/stack');
-
+  const { NavigationContainer } = jest.requireActual('@react-navigation/native');
   return {
     ...jest.requireActual('@react-navigation/native'),
-    NavigationContainer: jest.fn(() => <View style={{ flex: 1 }} />),
-    createStackNavigator: jest.fn(() => ({
-      Navigator: jest.fn(() => <View style={{ flex: 1 }} />),
-      Screen: jest.fn(() => <View style={{ flex: 1 }} />),
-    })),
+    NavigationContainer: jest.fn().mockImplementation(({ children }) => children),
+  };
+});
+
+jest.mock('@react-navigation/stack', () => {
+  return {
+    createStackNavigator: jest.fn().mockReturnValue({
+      Navigator: jest.fn().mockImplementation(({ children }) => children),
+      Screen: jest.fn().mockImplementation(({ component, name, options }) => component),
+    }),
   };
 });
 
 describe('App Component', () => {
 
-  it('renders the WeatherScreen component within the NavigationContainer', () => {
+  // Unit Test: Initial Render - Verify Weather Screen is rendered
+  it('renders the Weather Screen initially', () => {
     render(<App />);
-    expect(screen.getByText('Weather Forecast')).toBeDefined();
-    expect(screen.getByText('Weather data will be displayed here.')).toBeDefined();
+    const weatherTitle = screen.getByText('Weather Forecast');
+    const weatherText = screen.getByText('Weather data will be displayed here.');
+    expect(weatherTitle).toBeDefined();
+    expect(weatherText).toBeDefined();
   });
 
-  it('renders the correct title in the app header', () => {
+  // Unit Test: Verify Title Text
+  it('renders the correct title text', () => {
     render(<App />);
-    // This is a bit tricky with react-native-testing-library and stack navigation.
-    // We're relying on the title being rendered within the WeatherScreen.
-    // A more robust test would require mocking the navigation props.
-    expect(screen.getByText('Weather App')).toBeDefined();
+    const titleElement = screen.getByText('Weather App');
+    expect(titleElement).toBeDefined();
   });
 
-  it('renders the container with the correct style', () => {
+  // Integration Test: Navigation Container - Check if NavigationContainer is rendered (mocked)
+  it('renders the NavigationContainer', () => {
     render(<App />);
-    const container = screen.getByTestId('container'); // Add testId to container in App.js for more reliable testing
+    expect(NavigationContainer).toHaveBeenCalledTimes(1);
+  });
+
+  // Integration Test: Stack Navigator - Check if Stack Navigator is rendered (mocked)
+  it('renders the Stack Navigator', () => {
+    render(<App />);
+    expect(createStackNavigator).toHaveBeenCalledTimes(1);
+  });
+
+  // Edge Case Test:  Empty Weather Screen - Verify basic rendering even with minimal content
+  it('renders correctly with minimal Weather Screen content', () => {
+    const MockWeatherScreen = () => <View />;
+    const AppWithMock = () => (
+      <NavigationContainer>
+        <Stack.Navigator initialRouteName="Weather">
+          <Stack.Screen name="Weather" component={MockWeatherScreen} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    );
+
+    render(<AppWithMock />);
+    const container = screen.getByTestId('container'); // Assuming a container with testId is added in real app
     expect(container).toBeDefined();
   });
 
-  it('renders the title with the correct style', () => {
-    render(<App />);
-    const title = screen.getByText('Weather Forecast');
-    expect(title).toBeDefined();
-  });
+  // Error Handling Test:  No Initial Route -  (Simulate a missing initialRouteName - should still render something)
+  it('renders without crashing if initialRouteName is missing (mocked)', () => {
+    const MockStack = createStackNavigator;
+    MockStack.mockReturnValue({
+      Navigator: jest.fn().mockImplementation(({ children }) => children),
+      Screen: jest.fn().mockImplementation(({ component, name, options }) => component),
+    });
 
-  // Edge Case: Test for empty state (if WeatherScreen had one) - not applicable in current code
-  // Error Handling:  Not applicable in current code, as there's no error handling logic.
+    const AppWithoutInitialRoute = () => (
+      <NavigationContainer>
+        <MockStack.Navigator>
+          <MockStack.Screen name="Weather" component={() => <Text>Weather</Text>} />
+        </MockStack.Navigator>
+      </NavigationContainer>
+    );
+
+    render(<AppWithoutInitialRoute />);
+    const weatherText = screen.getByText('Weather');
+    expect(weatherText).toBeDefined();
+  });
 }

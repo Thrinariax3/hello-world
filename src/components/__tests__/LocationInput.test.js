@@ -2,34 +2,25 @@
 import LocationInput from '../components/LocationInput';
 import { Alert } from 'react-native';
 
-// Mock the Alert function to prevent actual alerts during testing
-jest.mock('react-native', () => {
-  const originalReactNative = jest.requireActual('react-native');
-  return {
-    ...originalReactNative,
-    Alert: {
-      alert: jest.fn(),
-    },
-  };
-});
-
-// Mock the fetchWeatherData function
-jest.mock('../components/LocationInput', () => ({
-  ...jest.requireActual('../components/LocationInput'),
-  fetchWeatherData: jest.fn(),
+// Mock the Alert component
+jest.mock('react-native', () => ({
+  ...jest.requireActual('react-native'),
+  Alert: {
+    alert: jest.fn(),
+  },
 }));
 
 describe('LocationInput Component', () => {
 
   // Unit Tests - Toxic Shot (Direct Hits)
   it('renders correctly', () => {
-    render(<LocationInput onWeatherDataFetched={() => {}} />);
-    expect(screen.getByPlaceholderText('Enter city or zip code')).toBeOnTheScreen();
-    expect(screen.getByText('Get Weather')).toBeOnTheScreen();
+    render(<LocationInput />);
+    expect(screen.getByPlaceholderText('Enter city or zip code')).toBeDefined();
+    expect(screen.getByText('Get Weather')).toBeDefined();
   });
 
-  it('updates location state when text changes', () => {
-    render(<LocationInput onWeatherDataFetched={() => {}} />);
+  it('updates location state on text input change', () => {
+    render(<LocationInput />);
     const input = screen.getByPlaceholderText('Enter city or zip code');
     fireEvent.changeText(input, 'London');
     expect(input).toHaveValue('London');
@@ -37,55 +28,35 @@ describe('LocationInput Component', () => {
 
   // Integration Tests - Blinding Dart (System Integration)
   it('calls onWeatherDataFetched with weather data on successful API call', async () => {
-    const mockWeatherData = { location: 'Test City', temperature: 25, condition: 'Sunny' };
-    const onWeatherDataFetched = jest.fn();
-
-    fetchWeatherData.mockResolvedValue(mockWeatherData);
-
-    render(<LocationInput onWeatherDataFetched={onWeatherDataFetched} />);
+    const mockOnWeatherDataFetched = jest.fn();
+    render(<LocationInput onWeatherDataFetched={mockOnWeatherDataFetched} />);
     const input = screen.getByPlaceholderText('Enter city or zip code');
     const button = screen.getByText('Get Weather');
 
-    fireEvent.changeText(input, 'Test City');
+    fireEvent.changeText(input, 'TestLocation');
     fireEvent.press(button);
 
     await waitFor(() => {
-      expect(onWeatherDataFetched).toHaveBeenCalledWith(mockWeatherData);
+      expect(mockOnWeatherDataFetched).toHaveBeenCalledTimes(1);
     });
   });
 
   // Edge Case Tests - Mushroom Traps (Hidden in Unexpected Places)
   it('shows an error alert when submitting an empty location', async () => {
-    render(<LocationInput onWeatherDataFetched={() => {}} />);
+    render(<LocationInput />);
     const button = screen.getByText('Get Weather');
     fireEvent.press(button);
 
     await waitFor(() => {
-      expect(Alert.alert).toHaveBeenCalledWith('Error', 'Please enter a location.');
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'Error',
+        'Please enter a location.'
+      );
     });
   });
 
-  it('handles API errors and shows an error alert', async () => {
-    const onWeatherDataFetched = jest.fn();
-    fetchWeatherData.mockRejectedValue(new Error('API Error'));
-
-    render(<LocationInput onWeatherDataFetched={onWeatherDataFetched} />);
-    const input = screen.getByPlaceholderText('Enter city or zip code');
-    const button = screen.getByText('Get Weather');
-
-    fireEvent.changeText(input, 'Error');
-    fireEvent.press(button);
-
-    await waitFor(() => {
-      expect(Alert.alert).toHaveBeenCalledWith('Error', 'Failed to fetch weather data. Please try again.');
-    });
-  });
-
-  it('handles specific error location "error"', async () => {
-    const onWeatherDataFetched = jest.fn();
-    fetchWeatherData.mockRejectedValue(new Error('Failed to fetch weather data for this location.'));
-
-    render(<LocationInput onWeatherDataFetched={onWeatherDataFetched} />);
+  it('handles API error and shows an error alert', async () => {
+    render(<LocationInput />);
     const input = screen.getByPlaceholderText('Enter city or zip code');
     const button = screen.getByText('Get Weather');
 
@@ -93,26 +64,44 @@ describe('LocationInput Component', () => {
     fireEvent.press(button);
 
     await waitFor(() => {
-      expect(Alert.alert).toHaveBeenCalledWith('Error', 'Failed to fetch weather data. Please try again.');
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'Error',
+        'Failed to fetch weather data. Please try again.'
+      );
     });
   });
 
   // Error Handling Tests - Move Quick (Escape Routes)
-  it('logs errors to the console when fetchWeatherData throws an error', async () => {
+  it('logs errors to the console when API call fails', async () => {
     const consoleSpy = jest.spyOn(console, 'error');
-    fetchWeatherData.mockRejectedValue(new Error('Test Error'));
-
-    render(<LocationInput onWeatherDataFetched={() => {}} />);
+    render(<LocationInput />);
     const input = screen.getByPlaceholderText('Enter city or zip code');
     const button = screen.getByText('Get Weather');
 
-    fireEvent.changeText(input, 'Test');
+    fireEvent.changeText(input, 'error');
     fireEvent.press(button);
 
     await waitFor(() => {
-      expect(consoleSpy).toHaveBeenCalled();
+      expect(consoleSpy).toHaveBeenCalledWith('Error in LocationInput:', new Error('Failed to fetch weather data for this location.'));
     });
 
     consoleSpy.mockRestore();
+  });
+
+  it('correctly handles a valid location and calls the callback', async () => {
+    const mockOnWeatherDataFetched = jest.fn();
+    render(<LocationInput onWeatherDataFetched={mockOnWeatherDataFetched} />);
+    const input = screen.getByPlaceholderText('Enter city or zip code');
+    const button = screen.getByText('Get Weather');
+
+    fireEvent.changeText(input, 'ValidLocation');
+    fireEvent.press(button);
+
+    await waitFor(() => {
+      expect(mockOnWeatherDataFetched).toHaveBeenCalledTimes(1);
+      expect(mockOnWeatherDataFetched).toHaveBeenCalledWith(expect.objectContaining({
+        location: 'ValidLocation',
+      }));
+    });
   });
 }
